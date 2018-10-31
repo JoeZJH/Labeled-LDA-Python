@@ -1,6 +1,5 @@
 import model.labeled_lda as llda
 
-
 # data
 labeled_documents = [("example example example example example", ["example"]),
                      ("test llda model test llda model test llda model", ["test", "llda_model"]),
