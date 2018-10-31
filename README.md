@@ -18,15 +18,15 @@ Labeled LDA can directly learn topics(tags) correspondences.
 * Graphical model of Labeled LDA:
 <!-- ![https://github.com/JoeZJH/Labeled-LDA/blob/master/assets/graphical-of-labeled-lda.png](https://github.com/JoeZJH/Labeled-LDA/blob/master/assets/graphical-of-labeled-lda.png) -->
 
-<img src="https://github.com/JoeZJH/Labeled-LDA/blob/master/assets/graphical-of-labeled-lda.png" width="400" height="265"/>
+<img src="https://github.com/JoeZJH/Labeled-LDA-Python/blob/master/assets/graphical-of-labeled-lda.png" width="400" height="265"/>
 
 * Generative process for Labeled LDA:
 <!-- ![https://github.com/JoeZJH/Labeled-LDA/blob/master/assets/generative-process-for-labeled-lda.png](https://github.com/JoeZJH/Labeled-LDA/blob/master/assets/generative-process-for-labeled-lda.png) -->
-<img src="https://github.com/JoeZJH/Labeled-LDA/blob/master/assets/generative-process-for-labeled-lda.png" width="400" height="400"/>
+<img src="https://github.com/JoeZJH/Labeled-LDA-Python/blob/master/assets/generative-process-for-labeled-lda.png" width="400" height="400"/>
 
 * Gibbs sampling equation:
 <!-- ![https://github.com/JoeZJH/Labeled-LDA/blob/master/assets/gibbs-sampling-equation.png](https://github.com/JoeZJH/Labeled-LDA/blob/master/assets/gibbs-sampling-equation.png) -->
-<img src="https://github.com/JoeZJH/Labeled-LDA/blob/master/assets/gibbs-sampling-equation.png" width="400" height="85"/>
+<img src="https://github.com/JoeZJH/Labeled-LDA-Python/blob/master/assets/gibbs-sampling-equation.png" width="400" height="85"/>
 
 
 
