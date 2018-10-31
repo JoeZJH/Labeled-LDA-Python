@@ -444,8 +444,9 @@ class LldaModel:
                "\tM = %s\n" \
                "\tT = %s\n" \
                "\tWN = %s\n" \
+               "\tLN = %s\n" \
                "\tperplexity = %s\n" \
-               "\t" % (self.K, self.M, self.T, self.WN, self.perplexity)
+               "\t" % (self.K, self.M, self.T, self.WN, self.LN, self.perplexity)
         pass
 
     class SaveModel:
