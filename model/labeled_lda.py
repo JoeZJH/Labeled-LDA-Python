@@ -599,6 +599,119 @@ class LldaModel:
         self._initialize_derivative_fields()
         pass
 
+    def update(self, labeled_documents=None):
+        """
+        update model with labeled documents, incremental update
+        :return: None
+        """
+        if labeled_documents is None:
+            pass
+
+        new_labels = []
+        new_words = []
+        new_doc_corpus = []
+        new_labels_corpus = []
+        for document, labels in labeled_documents:
+            doc_words = document.split()
+            new_doc_corpus.append(doc_words)
+            if labels is None:
+                labels = []
+            labels.append("common_topic")
+            new_labels_corpus.append(labels)
+            new_words.extend(doc_words)
+            new_labels.extend(labels)
+        # self.terms = list(set(new_words))
+        new_terms = set(new_words) - set(self.terms)
+        self.terms.extend(new_terms)
+        self.vocabulary = {term: index for index, term in enumerate(self.terms)}
+
+        # self.topics = list(set(new_labels))
+        new_topics = set(new_labels) - set(self.topics)
+        self.topics.extend(new_topics)
+        self.topic_vocabulary = {topic: index for index, topic in enumerate(self.topics)}
+
+        old_K = self.K
+        old_T = self.T
+        self.K = len(self.topics)
+        self.T = len(self.terms)
+
+        # self.W = [[self.vocabulary[term] for term in doc_words] for doc_words in new_doc_corpus]
+        new_w_vectors = [[self.vocabulary[term] for term in doc_words] for doc_words in new_doc_corpus]
+        for new_w_vector in new_w_vectors:
+            self.W.append(new_w_vector)
+
+        old_M = self.M
+        old_WN = self.WN
+        self.M = len(self.W)
+        self.WN += len(new_words)
+        # we appended topic "common_topic" to each doc at the beginning
+        # so we need minus the number of "common_topic"
+        # LN is the number of original labels
+        old_LN = self.LN
+
+        self.LN += len(new_labels) + len(new_labels_corpus)
+
+        old_Lambda = self.Lambda
+        self.Lambda = np.zeros((self.M, self.K), dtype=float)
+        for m in range(self.M):
+            if m < old_M:
+                # if the old document has no topic, we also init it to all topics here
+                if sum(old_Lambda[m]) == old_K:
+                    # set all value of self.Lambda[m] to 1.0
+                    self.Lambda[m] += 1.0
+                continue
+            # print m, old_M
+            if len(new_labels_corpus[m-old_M]) == 1:
+                new_labels_corpus[m-old_M] = self.topics
+            for label in new_labels_corpus[m-old_M]:
+                k = self.topic_vocabulary[label]
+                self.Lambda[m, k] = 1.0
+
+        # TODO: the following 2 fields should be modified again if alpha_vector is not constant vector
+        self.alpha_vector = [self.alpha_vector[0] for _ in range(self.K)]
+        self.eta_vector = [self.alpha_vector[0] for _ in range(self.T)]
+
+        # self.Z = []
+        for m in range(old_M, self.M):
+            # print "self.Lambda[m]: ", self.Lambda[m]
+            numerator_vector = self.Lambda[m] * self.alpha_vector
+            p_vector = numerator_vector / sum(numerator_vector)
+            # print p_vector
+            # print "p_vector: ", p_vector
+            # z_vector is a vector of a document,
+            # just like [2, 3, 6, 0], which means this doc have 4 word and them generated
+            # from the 2nd, 3rd, 6th, 0th topic, respectively
+            z_vector = [LldaModel._multinomial_sample(p_vector) for _ in range(len(self.W[m]))]
+            self.Z.append(z_vector)
+
+        self._initialize_derivative_fields()
+        pass
+
+    @staticmethod
+    def _extend_matrix(origin=None, shape=None, padding_value=0):
+        """
+        for quickly extend the matrices when update
+        extend origin matrix with shape, padding with padding_value
+        :type shape: the shape of new matrix
+        :param origin: np.ndarray, the original matrix
+        :return: np.ndarray, a matrix with new shape
+        """
+        new_matrix = np.zeros(shape, dtype=origin.dtype)
+
+        for row in range(new_matrix.shape[0]):
+            for col in range(new_matrix.shape[1]):
+                if row < origin.shape[0] and col < origin.shape[0]:
+                    new_matrix[row, col] = origin[row, col]
+                else:
+                    new_matrix[row, col] = padding_value
+
+        return new_matrix
+        pass
+
 
 if __name__ == "__main__":
+    ones = np.ones((3, 5), dtype=int) + 1
+    new_matrix = LldaModel._extend_matrix(origin=ones, shape=(4, 6), padding_value=1)
+    print new_matrix
     pass
+

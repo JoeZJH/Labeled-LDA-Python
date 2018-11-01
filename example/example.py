@@ -12,9 +12,20 @@ print llda_model
 # training
 llda_model.training(iteration=10, log=True)
 
+# update
+print "before updating: ", llda_model
+update_labeled_documents = [("good perfect good good perfect good good perfect good ", ["positive"]),
+                            ("bad bad down down bad", ["negative"]),
+                            ("new example test example test example test example test", ["example", "test"])]
+llda_model.update(labeled_documents=update_labeled_documents)
+print "after updating: ", llda_model
+
+# train again
+llda_model.training(iteration=10, log=True)
+
 # inference
 # note: the result topics may be different for difference training, because gibbs sampling is a random algorithm
-document = "test example llda model test example test example"
+document = "test example llda model test example test example good perfect good perfect good perfect"
 topics = llda_model.inference(document=document, iteration=10, times=10)
 print topics
 
