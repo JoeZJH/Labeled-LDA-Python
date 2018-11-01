@@ -80,9 +80,10 @@ class LldaModel:
         # derivative fields:
         # the following fields could reduce operations in training and inference
         # it is not necessary to save them to file, we can recover them by other fields
-        self.Doc2TopicCountSum = None
+
+        # self.Doc2TopicCountSum = None
         self.alpha_vector_Lambda = None
-        self.alpha_vector_Lambda_sum = None
+        # self.alpha_vector_Lambda_sum = None
         self.eta_vector_sum = 0.0
         self.Topic2TermCountSum = None
 
@@ -96,9 +97,9 @@ class LldaModel:
         initialize derivative fields
         :return: None
         """
-        self.Doc2TopicCountSum = self.Doc2TopicCount.sum(axis=1)
+        # self.Doc2TopicCountSum = self.Doc2TopicCount.sum(axis=1)
         self.alpha_vector_Lambda = self.alpha_vector * self.Lambda
-        self.alpha_vector_Lambda_sum = self.alpha_vector_Lambda.sum(axis=1)
+        # self.alpha_vector_Lambda_sum = self.alpha_vector_Lambda.sum(axis=1)
         self.eta_vector_sum = sum(self.eta_vector)
         self.Topic2TermCountSum = self.Topic2TermCount.sum(axis=1)
 
@@ -164,7 +165,7 @@ class LldaModel:
         for m in range(self.M):
             # print "self.Lambda[m]: ", self.Lambda[m]
             numerator_vector = self.Lambda[m] * self.alpha_vector
-            p_vector = numerator_vector / sum(numerator_vector)
+            p_vector = 1.0 * numerator_vector / sum(numerator_vector)
             # print p_vector
             # print "p_vector: ", p_vector
             # z_vector is a vector of a document,
@@ -213,7 +214,7 @@ class LldaModel:
             # assert (doc_m_alpha_vector == self.alpha_vector_Lambda[m]).all()
 
             # sum_doc_m_alpha_vector = sum(doc_m_alpha_vector)
-            sum_doc_m_alpha_vector = self.alpha_vector_Lambda_sum[m]
+            # sum_doc_m_alpha_vector = self.alpha_vector_Lambda_sum[m]
             # assert sum_doc_m_alpha_vector == self.alpha_vector_Lambda_sum[m]
 
             for t, z, n in zip(self.W[m], self.Z[m], range(len(self.W[m]))):
@@ -224,7 +225,7 @@ class LldaModel:
 
                 numerator_theta_vector = self.Doc2TopicCount[m] + doc_m_alpha_vector
                 # denominator_theta = sum(self.Doc2TopicCount[m]) + sum_doc_m_alpha_vector
-                denominator_theta = self.Doc2TopicCountSum[m]-1 + sum_doc_m_alpha_vector
+                # denominator_theta = self.Doc2TopicCountSum[m]-1 + sum_doc_m_alpha_vector
                 # assert sum(self.Doc2TopicCount[m]) == self.Doc2TopicCountSum[m]-1
 
                 numerator_beta_vector = self.Topic2TermCount[:, t] + self.eta_vector[t]
@@ -235,11 +236,14 @@ class LldaModel:
                 # assert sum(self.eta_vector) == self.eta_vector_sum
 
                 beta_vector = 1.0 * numerator_beta_vector / denominator_beta
-                theta_vector = 1.0 * numerator_theta_vector / denominator_theta
+                # theta_vector = 1.0 * numerator_theta_vector / denominator_theta
+                # denominator_theta is independent with t and k, so denominator could be any value except 0
+                # will set denominator_theta as 1.0
+                theta_vector = numerator_theta_vector
 
                 p_vector = beta_vector * theta_vector
                 # print p_vector
-                p_vector = p_vector / sum(p_vector)
+                p_vector = 1.0 * p_vector / sum(p_vector)
                 # print p_vector
                 sample_z = LldaModel._multinomial_sample(p_vector)
                 self.Z[m][n] = sample_z
@@ -272,9 +276,9 @@ class LldaModel:
             self.Topic2TermCount[k, t] += 1
             self.Topic2TermCountSum[k] += 1
 
-        sum_doc_topic_count = sum(doc_topic_count)
+        # sum_doc_topic_count = sum(doc_topic_count)
         doc_m_alpha_vector = self.alpha_vector
-        sum_doc_m_alpha_vector = sum(doc_m_alpha_vector)
+        # sum_doc_m_alpha_vector = sum(doc_m_alpha_vector)
         for i in range(iteration):
             for n, t in enumerate(term_vector):
                 k = z_vector[n]
@@ -283,18 +287,21 @@ class LldaModel:
                 self.Topic2TermCountSum[k] -= 1
 
                 numerator_theta_vector = doc_topic_count + doc_m_alpha_vector
-                denominator_theta = sum_doc_topic_count - 1 + sum_doc_m_alpha_vector
+                # denominator_theta = sum_doc_topic_count - 1 + sum_doc_m_alpha_vector
 
                 numerator_beta_vector = self.Topic2TermCount[:, t] + self.eta_vector[t]
                 # denominator_beta = self.Topic2TermCount.sum(axis=1) + sum(self.eta_vector)
                 denominator_beta = self.Topic2TermCountSum + self.eta_vector_sum
 
-                beta_vector = numerator_beta_vector / denominator_beta
-                theta_vector = numerator_theta_vector / denominator_theta
+                beta_vector = 1.0 * numerator_beta_vector / denominator_beta
+                # theta_vector = 1.0 numerator_theta_vector / denominator_theta
+                # denominator_theta is independent with t and k, so denominator could be any value except 0
+                # will set denominator_theta as 1.0
+                theta_vector = numerator_theta_vector
 
                 p_vector = beta_vector * theta_vector
                 # print p_vector
-                p_vector = p_vector / sum(p_vector)
+                p_vector = 1.0 * p_vector / sum(p_vector)
                 # print p_vector
                 sample_z = LldaModel._multinomial_sample(p_vector)
                 z_vector[n] = sample_z
@@ -310,7 +317,8 @@ class LldaModel:
             self.Topic2TermCountSum[k] -= 1
 
         numerator_theta_vector = doc_topic_count + doc_m_alpha_vector
-        denominator_theta = sum(doc_topic_count) + sum(doc_m_alpha_vector)
+        # denominator_theta = sum(doc_topic_count) + sum(doc_m_alpha_vector)
+        denominator_theta = sum(numerator_theta_vector)
         theta_new = 1.0 * numerator_theta_vector / denominator_theta
         return theta_new
 
@@ -355,7 +363,7 @@ class LldaModel:
             theta_new = self._gibbs_sample_inference(term_vector, iteration=iteration)
             # print theta_new
             theta_new_accumulation += theta_new
-        theta_new = theta_new_accumulation / times
+        theta_new = 1.0 * theta_new_accumulation / times
         # print "avg: \n", theta_new
         doc_topic_new = [(self.topics[k], probability) for k, probability in enumerate(theta_new)]
         sorted_doc_topic_new = sorted(doc_topic_new,
@@ -371,7 +379,8 @@ class LldaModel:
         :return: a vector, shape is T
         """
         numerator_vector = self.Topic2TermCount[k] + self.eta_vector
-        denominator = sum(self.Topic2TermCount[k]) + sum(self.eta_vector)
+        # denominator = sum(self.Topic2TermCount[k]) + sum(self.eta_vector)
+        denominator = sum(numerator_vector)
         return 1.0 * numerator_vector / denominator
 
     def theta_m(self, m):
@@ -381,7 +390,8 @@ class LldaModel:
         :return: a vector, shape is K
         """
         numerator_vector = self.Doc2TopicCount[m] + self.alpha_vector * self.Lambda[m]
-        denominator = sum(self.Doc2TopicCount[m]) + sum(self.alpha_vector * self.Lambda[m])
+        # denominator = sum(self.Doc2TopicCount[m]) + sum(self.alpha_vector * self.Lambda[m])
+        denominator = sum(numerator_vector)
         return 1.0 * numerator_vector / denominator
 
     @property
@@ -393,7 +403,8 @@ class LldaModel:
         """
         numerator_matrix = self.Topic2TermCount + self.eta_vector
         # column vector
-        denominator_vector = self.Topic2TermCount.sum(axis=1).reshape(self.K, 1) + sum(self.eta_vector)
+        # denominator_vector = self.Topic2TermCount.sum(axis=1).reshape(self.K, 1) + sum(self.eta_vector)
+        denominator_vector = numerator_matrix.sum(axis=1).reshape(self.K, 1)
         return 1.0 * numerator_matrix / denominator_vector
 
         pass
@@ -439,7 +450,7 @@ class LldaModel:
         return np.exp(self.log_perplexity)
 
     def __repr__(self):
-        return "Labeled-LDA Model:\n" \
+        return "\nLabeled-LDA Model:\n" \
                "\tK = %s\n" \
                "\tM = %s\n" \
                "\tT = %s\n" \
