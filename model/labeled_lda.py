@@ -36,12 +36,12 @@ class LldaModel:
     @field WN: the number of all words in W
     @field LN: the number of all original labels
     @field iteration: the times of iteration
+
+    # derivative fields
     @field Doc2TopicCount: a matrix, shape is M * K,
                            Doc2TopicCount[m][k] is the times of topic k sampled in document m
     @field Topic2TermCount: a matrix, shape is K * T,
                             Topic2TermCount[k][t] is the times of term t generated from topic k
-
-    # derivative fields
     @field Doc2TopicCountSum: a vector, shape is M, self.Doc2TopicCount.sum(axis=1)
                               Doc2TopicCountSum[m] is the count of all topic,
                               i.e., Doc2TopicCountSum[m] is the number of words in document m
@@ -73,14 +73,14 @@ class LldaModel:
         self.LN = 0
         self.iteration = 0
 
-        self.Doc2TopicCount = None
-        self.Topic2TermCount = None
         self.Lambda = None
 
         # derivative fields:
         # the following fields could reduce operations in training and inference
         # it is not necessary to save them to file, we can recover them by other fields
 
+        self.Doc2TopicCount = None
+        self.Topic2TermCount = None
         # self.Doc2TopicCountSum = None
         self.alpha_vector_Lambda = None
         # self.alpha_vector_Lambda_sum = None
@@ -97,6 +97,19 @@ class LldaModel:
         initialize derivative fields
         :return: None
         """
+        # TODO: Doc2TopicCount could be reduced to a smaller matrix,
+        # TODO: because some vector in Doc2TopicCount will always been 0
+        self.Doc2TopicCount = np.zeros((self.M, self.K), dtype=int)
+        self.Topic2TermCount = np.zeros((self.K, self.T), dtype=int)
+        for m in range(self.M):
+            # print self.Z[m]
+            for t, z in zip(self.W[m], self.Z[m]):
+                k = z
+                # print "[m=%s, k=%s]" % (m, k)
+                # print "[k=%s, t=%s]" % (k, t)
+                self.Doc2TopicCount[m, k] += 1
+                self.Topic2TermCount[k, t] += 1
+
         # self.Doc2TopicCountSum = self.Doc2TopicCount.sum(axis=1)
         self.alpha_vector_Lambda = self.alpha_vector * self.Lambda
         # self.alpha_vector_Lambda_sum = self.alpha_vector_Lambda.sum(axis=1)
@@ -173,19 +186,6 @@ class LldaModel:
             # from the 2nd, 3rd, 6th, 0th topic, respectively
             z_vector = [LldaModel._multinomial_sample(p_vector) for _ in range(len(self.W[m]))]
             self.Z.append(z_vector)
-
-        # TODO: Doc2TopicCount could be reduced to a smaller matrix,
-        # TODO: because some vector in Doc2TopicCount will always been 0
-        self.Doc2TopicCount = np.zeros((self.M, self.K), dtype=int)
-        self.Topic2TermCount = np.zeros((self.K, self.T), dtype=int)
-        for m in range(self.M):
-            # print self.Z[m]
-            for t, z in zip(self.W[m], self.Z[m]):
-                k = z
-                # print "[m=%s, k=%s]" % (m, k)
-                # print "[k=%s, t=%s]" % (k, t)
-                self.Doc2TopicCount[m, k] += 1
-                self.Topic2TermCount[k, t] += 1
 
         self._initialize_derivative_fields()
         pass
@@ -479,8 +479,8 @@ class LldaModel:
 
             # the following fields cannot be dumped into json file
             # we need write them with np.save() and read them with np.load()
-            self.Doc2TopicCount = None
-            self.Topic2TermCount = None
+            # self.Doc2TopicCount = None
+            # self.Topic2TermCount = None
             self.Lambda = None
 
             if save_model_dict is not None:
@@ -563,8 +563,8 @@ class LldaModel:
         save_model_path = os.path.join(dir_name, "llda_model.json")
         LldaModel._write_object_to_file(save_model_path, save_model.__dict__)
 
-        np.save(os.path.join(dir_name, "Doc2TopicCount.npy"), self.Doc2TopicCount)
-        np.save(os.path.join(dir_name, "Topic2TermCount.npy"), self.Topic2TermCount)
+        # np.save(os.path.join(dir_name, "Doc2TopicCount.npy"), self.Doc2TopicCount)
+        # np.save(os.path.join(dir_name, "Topic2TermCount.npy"), self.Topic2TermCount)
         np.save(os.path.join(dir_name, "Lambda.npy"), self.Lambda)
         pass
 
@@ -592,8 +592,8 @@ class LldaModel:
         self.LN = save_model.LN
         self.iteration = save_model.iteration
 
-        self.Doc2TopicCount = np.load(os.path.join(dir_name, "Doc2TopicCount.npy"))
-        self.Topic2TermCount = np.load(os.path.join(dir_name, "Topic2TermCount.npy"))
+        # self.Doc2TopicCount = np.load(os.path.join(dir_name, "Doc2TopicCount.npy"))
+        # self.Topic2TermCount = np.load(os.path.join(dir_name, "Topic2TermCount.npy"))
         self.Lambda = np.load(os.path.join(dir_name, "Lambda.npy"))
 
         self._initialize_derivative_fields()

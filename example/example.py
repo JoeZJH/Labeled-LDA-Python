@@ -25,4 +25,5 @@ llda_model.save_model_to_dir(save_model_dir)
 # load from disk
 llda_model_new = llda.LldaModel()
 llda_model_new.load_model_from_dir(save_model_dir)
-print llda_model_new
+print "llda_model_new", llda_model_new
+print "llda_model", llda_model
