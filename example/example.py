@@ -14,7 +14,7 @@ llda_model.training(iteration=10, log=True)
 
 # inference
 # note: the result topics may be different for difference training, because gibbs sampling is a random algorithm
-document = "test example"
+document = "test example llda model test example test example"
 topics = llda_model.inference(document=document, iteration=10, times=10)
 print topics
 
