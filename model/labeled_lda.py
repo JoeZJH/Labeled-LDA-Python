@@ -20,7 +20,13 @@ class LldaModel:
 
     @field K: the number of topics
     @field alpha_vector: the prior distribution of theta_m
+                         str("50_div_K"): means [K/50, K/50, ...],
+                                this value come from Parameter estimation for text analysis, Gregor Heinrich.
+                         int or float: means [alpha_vector, alpha_vector, ...]
+                         None: means [0.001, 0.001, ...]
     @field eta_vector: the prior distribution of beta_k
+                       int or float: means [eta_vector, eta_vector, ...]
+                       None: means [0.001, 0.001, ...]
     @field terms: a list of the all terms
     @field vocabulary: a dict of <term, term_id>, vocabulary[terms[id]] == id
     @field topics: a list of the all topics
@@ -160,19 +166,22 @@ class LldaModel:
                 self.Lambda[m, k] = 1.0
 
         if self.alpha_vector is None:
-            # label_counter = Counter(all_labels)
-            # counter_list = [(self.topic_vocabulary[label], count) for label, count in label_counter.items()]
-            # sorted_count_list = sorted(counter_list, key=lambda counter: counter[0], reverse=False)
-            # print self.topics
-            # print sorted_count_list
-            # count_vector = np.array([count for _, count in sorted_count_list], dtype=float)
-            # self.alpha_vector = count_vector / sum(count_vector)
-            # print self.alpha_vector
-            # print sorted_count_list
-            # self.alpha_vector = [50.0/self.K for _ in range(self.K)]
             self.alpha_vector = [0.001 for _ in range(self.K)]
+        elif type(self.alpha_vector) is str and self.alpha_vector == "50_div_K":
+            self.alpha_vector = [50.0/self.K for _ in range(self.K)]
+        elif type(self.alpha_vector) is float or type(self.alpha_vector) is int:
+            self.alpha_vector = [self.alpha_vector for _ in range(self.K)]
+        else:
+            message = "error alpha_vector: %s" % self.alpha_vector
+            raise Exception(message)
+
         if self.eta_vector is None:
             self.eta_vector = [0.001 for _ in range(self.T)]
+        elif type(self.eta_vector) is float or type(self.eta_vector) is int:
+            self.eta_vector = [self.eta_vector for _ in range(self.T)]
+        else:
+            message = "error eta_vector: %s" % self.eta_vector
+            raise Exception(message)
 
         self.Z = []
         for m in range(self.M):
@@ -456,8 +465,10 @@ class LldaModel:
                "\tT = %s\n" \
                "\tWN = %s\n" \
                "\tLN = %s\n" \
+               "\talpha = %s\n" \
+               "\teta = %s\n" \
                "\tperplexity = %s\n" \
-               "\t" % (self.K, self.M, self.T, self.WN, self.LN, self.perplexity)
+               "\t" % (self.K, self.M, self.T, self.WN, self.LN, self.alpha_vector[0], self.eta_vector[0], self.perplexity)
         pass
 
     class SaveModel:
@@ -669,7 +680,7 @@ class LldaModel:
 
         # TODO: the following 2 fields should be modified again if alpha_vector is not constant vector
         self.alpha_vector = [self.alpha_vector[0] for _ in range(self.K)]
-        self.eta_vector = [self.alpha_vector[0] for _ in range(self.T)]
+        self.eta_vector = [self.eta_vector[0] for _ in range(self.T)]
 
         # self.Z = []
         for m in range(old_M, self.M):
@@ -710,8 +721,5 @@ class LldaModel:
 
 
 if __name__ == "__main__":
-    ones = np.ones((3, 5), dtype=int) + 1
-    new_matrix = LldaModel._extend_matrix(origin=ones, shape=(4, 6), padding_value=1)
-    print new_matrix
     pass
 
