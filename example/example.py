@@ -14,7 +14,13 @@ llda_model = llda.LldaModel(labeled_documents=labeled_documents)
 print llda_model
 
 # training
-llda_model.training(iteration=10, log=True)
+# llda_model.training(iteration=10, log=True)
+while True:
+    print("iteration %s sampling..." % (llda_model.iteration + 1))
+    llda_model.training(1)
+    print "after iteration: %s, perplexity: %s" % (llda_model.iteration, llda_model.perplexity)
+    if llda_model.is_convergent:
+        break
 
 # update
 print "before updating: ", llda_model
@@ -23,12 +29,19 @@ llda_model.update(labeled_documents=update_labeled_documents)
 print "after updating: ", llda_model
 
 # train again
-llda_model.training(iteration=10, log=True)
+# llda_model.training(iteration=10, log=True)
+while True:
+    print("iteration %s sampling..." % (llda_model.iteration + 1))
+    llda_model.training(1)
+    print "after iteration: %s, perplexity: %s" % (llda_model.iteration, llda_model.perplexity)
+    if llda_model.is_convergent:
+        break
 
 # inference
 # note: the result topics may be different for difference training, because gibbs sampling is a random algorithm
 document = "example llda model example example good perfect good perfect good perfect"
-topics = llda_model.inference(document=document, iteration=10, times=10)
+# topics = llda_model.inference(document=document, iteration=10, times=10)
+topics = llda_model.inference_multi_processors(document=document, iteration=10, times=10)
 print topics
 
 # save to disk
