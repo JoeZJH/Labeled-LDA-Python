@@ -31,10 +31,12 @@ Labeled LDA can directly learn topics(tags) correspondences.
 ### Usage
 * new llda model
 * training
+* ?is_convergence
 * update
-* inference
+* inference [optional multi-process]
 * save model to disk
 * load model from disk
+
 
 ##### Example 
 ```
