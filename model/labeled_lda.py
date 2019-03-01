@@ -718,6 +718,7 @@ class LldaModel:
         update model with labeled documents, incremental update
         :return: None
         """
+        self.all_perplexities = []
         if labeled_documents is None:
             pass
 
