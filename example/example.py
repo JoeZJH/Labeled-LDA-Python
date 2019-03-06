@@ -46,6 +46,7 @@ print topics
 
 # save to disk
 save_model_dir = "../data/model"
+# llda_model.save_model_to_dir(save_model_dir, save_derivative_properties=True)
 llda_model.save_model_to_dir(save_model_dir)
 
 # load from disk

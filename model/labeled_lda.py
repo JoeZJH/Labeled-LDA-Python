@@ -656,9 +656,15 @@ class LldaModel:
             os.makedirs(dir_name)
         return dir_name
 
-    def save_model_to_dir(self, dir_name):
+    def save_model_to_dir(self, dir_name, save_derivative_properties=False):
         """
         save model to directory dir_name
+        :param save_derivative_properties: save derivative properties if True
+            some properties are not necessary save to disk, they could be derived from some basic properties,
+            we call they derivative properties.
+            to save derivative properties to disk:
+                it will reduce the time of loading model from disk (read properties directly but do not compute them)
+                but, meanwhile, it will take up more disk space
         :param dir_name: the target directory name
         :return: None
         """
@@ -682,11 +688,19 @@ class LldaModel:
         LldaModel._write_object_to_file(save_model_path, save_model.__dict__)
 
         np.save(os.path.join(dir_name, "Lambda.npy"), self.Lambda)
+        # save derivative properties
+        if save_derivative_properties:
+            np.save(os.path.join(dir_name, "Doc2TopicCount.npy"), self.Doc2TopicCount)
+            np.save(os.path.join(dir_name, "Topic2TermCount.npy"), self.Topic2TermCount)
+            np.save(os.path.join(dir_name, "alpha_vector_Lambda.npy"), self.alpha_vector_Lambda)
+            np.save(os.path.join(dir_name, "eta_vector_sum.npy"), self.eta_vector_sum)
+            np.save(os.path.join(dir_name, "Topic2TermCountSum.npy"), self.Topic2TermCountSum)
         pass
 
-    def load_model_from_dir(self, dir_name):
+    def load_model_from_dir(self, dir_name, load_derivative_properties=True):
         """
         load model from directory dir_name
+        :param load_derivative_properties: load derivative properties from disk if True
         :param dir_name: the target directory name
         :return: None
         """
@@ -710,7 +724,17 @@ class LldaModel:
 
         self.Lambda = np.load(os.path.join(dir_name, "Lambda.npy"))
 
-        self._initialize_derivative_fields()
+        # load de
+        if load_derivative_properties:
+            try:
+                self.Doc2TopicCount = np.load(os.path.join(dir_name, "Doc2TopicCount.npy"))
+                self.Topic2TermCount = np.load(os.path.join(dir_name, "Topic2TermCount.npy"))
+                self.alpha_vector_Lambda = np.load(os.path.join(dir_name, "alpha_vector_Lambda.npy"))
+                self.eta_vector_sum = np.load(os.path.join(dir_name, "eta_vector_sum.npy"))
+                self.Topic2TermCountSum = np.load(os.path.join(dir_name, "Topic2TermCountSum.npy"))
+            except IOError or ValueError, e:
+                print("%s: load derivative properties fail, initialize them with basic properties" % e)
+                self._initialize_derivative_fields()
         pass
 
     def update(self, labeled_documents=None):
