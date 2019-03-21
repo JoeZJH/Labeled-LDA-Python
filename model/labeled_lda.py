@@ -351,7 +351,7 @@ class LldaModel:
         # we copy all the shared variables may be modified on runtime
         random_state = np.random.RandomState()
         topic2term_count = self.Topic2TermCount.copy()
-        topic2term_count_sum = self.Topic2TermCountSum
+        topic2term_count_sum = self.Topic2TermCountSum.copy()
 
         doc_topic_count = np.zeros(self.K, dtype=int)
         p_vector = np.ones(self.K, dtype=int)
