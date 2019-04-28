@@ -724,7 +724,7 @@ class LldaModel:
 
         self.Lambda = np.load(os.path.join(dir_name, "Lambda.npy"))
 
-        # load de
+        # load load_derivative properties
         if load_derivative_properties:
             try:
                 self.Doc2TopicCount = np.load(os.path.join(dir_name, "Doc2TopicCount.npy"))
@@ -735,6 +735,8 @@ class LldaModel:
             except IOError or ValueError, e:
                 print("%s: load derivative properties fail, initialize them with basic properties" % e)
                 self._initialize_derivative_fields()
+        else:
+            self._initialize_derivative_fields()
         pass
 
     def update(self, labeled_documents=None):
