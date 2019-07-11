@@ -258,6 +258,11 @@ class LldaModel:
 
                 p_vector = beta_vector * theta_vector
                 # print p_vector
+                """
+                for some special document m (only have one word) p_vector may be zero here, sum(p_vector) will be zero too
+                1.0 * p_vector / sum(p_vector) will be [...nan...]
+                so we should avoid inputting the special document 
+                """
                 p_vector = 1.0 * p_vector / sum(p_vector)
                 # print p_vector
                 sample_z = LldaModel._multinomial_sample(p_vector)
@@ -513,6 +518,8 @@ class LldaModel:
     @property
     def beta(self):
         """
+        This name "beta" comes from
+            "Labeled LDA: A supervised topic model for credit attribution in multi-labeled corpora, Daniel Ramage..."
         topic-term distribution
         beta[k, t] is the probability of term t(word) to be generated from topic k
         :return: a matrix, shape is K * T
@@ -542,25 +549,27 @@ class LldaModel:
     def log_perplexity(self):
         """
         log perplexity of LDA topic model
+        Reference:  Parameter estimation for text analysis, Gregor Heinrich.
         :return: a float value
         """
         beta = self.beta
         # theta = self.theta
         log_likelihood = 0
-        word_count = 0
+        # word_count = 0
         for m, theta_m in enumerate(self.theta):
             for t in self.W[m]:
                 likelihood_t = np.inner(beta[:, t], theta_m)
                 # print likelihood_t
                 log_likelihood += -np.log(likelihood_t)
-                word_count += 1
-        assert word_count == self.WN, "word_count: %s\tself.WN: %s" % (word_count, self.WN)
+                # word_count += 1
+        # assert word_count == self.WN, "word_count: %s\tself.WN: %s" % (word_count, self.WN)
         return 1.0 * log_likelihood / self.WN
 
     @property
     def perplexity(self):
         """
         perplexity of LDA topic model
+        Reference:  Parameter estimation for text analysis, Gregor Heinrich.
         :return: a float value, perplexity = exp{log_perplexity}
         """
         return np.exp(self.log_perplexity)
