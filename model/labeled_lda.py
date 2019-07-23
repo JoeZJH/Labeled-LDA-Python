@@ -82,6 +82,7 @@ class LldaModel:
         self.LN = 0
         self.iteration = 0
         self.all_perplexities = []
+        self.last_beta = None
 
         self.Lambda = None
 
@@ -138,8 +139,8 @@ class LldaModel:
         doc_corpus = []
         labels_corpus = []
         for document, labels in labeled_documents:
+            document = LldaModel._document_preprocess(document)
             doc_words = document.split()
-            # self.documents.append(doc_words)
             doc_corpus.append(doc_words)
             if labels is None:
                 labels = []
@@ -220,6 +221,7 @@ class LldaModel:
         :return: None
         """
         # TODO: the operations of addition and multiplication could be reduced, because some
+        self.last_beta = self.beta
         count = 0
         for m in range(self.M):
 
@@ -276,18 +278,25 @@ class LldaModel:
         assert count == self.WN
         print "gibbs sample count: ", self.WN
         self.iteration += 1
-        self.all_perplexities.append(self.perplexity)
+        self.all_perplexities.append(self.perplexity())
         pass
 
-    def _gibbs_sample_inference(self, term_vector, iteration=30):
+    def _gibbs_sample_inference(self, term_vector, iteration=300, times=10):
         """
         inference with gibbs sampling
         :param term_vector: the term vector of document
-        :param iteration: the times of iteration
+        :param iteration: the times of iteration until Markov chain converges
+        :param times: the number of samples of the target distribution
+                (one whole iteration(sample for all words) generates a sample, the )
+                #times = #samples,
+                after Markov chain converges, the next #times samples as the samples of the target distribution,
+                we drop the samples before the Markov chain converges,
+                the result is the average value of #times samples
         :return: theta_new, a vector, theta_new[k] is the probability of doc(term_vector) to be generated from topic k
                  theta_new, a theta_vector, the doc-topic distribution
         """
         doc_topic_count = np.zeros(self.K, dtype=int)
+        accumulated_doc_topic_count = np.zeros(self.K, dtype=int)
         p_vector = np.ones(self.K, dtype=int)
         p_vector = p_vector * 1.0 / sum(p_vector)
         z_vector = [LldaModel._multinomial_sample(p_vector) for _ in term_vector]
@@ -300,7 +309,7 @@ class LldaModel:
         # sum_doc_topic_count = sum(doc_topic_count)
         doc_m_alpha_vector = self.alpha_vector
         # sum_doc_m_alpha_vector = sum(doc_m_alpha_vector)
-        for i in range(iteration):
+        for i in range(iteration+times):
             for n, t in enumerate(term_vector):
                 k = z_vector[n]
                 doc_topic_count[k] -= 1
@@ -331,88 +340,90 @@ class LldaModel:
                 doc_topic_count[k] += 1
                 self.Topic2TermCount[k, t] += 1
                 self.Topic2TermCountSum[k] += 1
+            if i >= iteration:
+                accumulated_doc_topic_count += doc_topic_count
         # reset self.Topic2TermCount
         for n, t in enumerate(term_vector):
             k = z_vector[n]
             self.Topic2TermCount[k, t] -= 1
             self.Topic2TermCountSum[k] -= 1
 
-        numerator_theta_vector = doc_topic_count + doc_m_alpha_vector
+        numerator_theta_vector = accumulated_doc_topic_count/times + doc_m_alpha_vector
         # denominator_theta = sum(doc_topic_count) + sum(doc_m_alpha_vector)
         denominator_theta = sum(numerator_theta_vector)
         theta_new = 1.0 * numerator_theta_vector / denominator_theta
         return theta_new
 
-    def _gibbs_sample_inference_multi_processors(self, term_vector, iteration=30):
-        """
-        inference with gibbs sampling
-        :param term_vector: the term vector of document
-        :param iteration: the times of iteration
-        :return: theta_new, a vector, theta_new[k] is the probability of doc(term_vector) to be generated from topic k
-                 theta_new, a theta_vector, the doc-topic distribution
-        """
-        # print("gibbs sample inference iteration: %s" % iteration)
-        # TODO: complete multi-processors code here
-        # we copy all the shared variables may be modified on runtime
-        random_state = np.random.RandomState()
-        topic2term_count = self.Topic2TermCount.copy()
-        topic2term_count_sum = self.Topic2TermCountSum.copy()
-
-        doc_topic_count = np.zeros(self.K, dtype=int)
-        p_vector = np.ones(self.K, dtype=int)
-        p_vector = p_vector * 1.0 / sum(p_vector)
-        z_vector = [LldaModel._multinomial_sample(p_vector, random_state=random_state) for _ in term_vector]
-        for n, t in enumerate(term_vector):
-            k = z_vector[n]
-            doc_topic_count[k] += 1
-            topic2term_count[k, t] += 1
-            topic2term_count_sum[k] += 1
-
-        # sum_doc_topic_count = sum(doc_topic_count)
-        doc_m_alpha_vector = self.alpha_vector
-        # sum_doc_m_alpha_vector = sum(doc_m_alpha_vector)
-        for i in range(iteration):
-            for n, t in enumerate(term_vector):
-                k = z_vector[n]
-                doc_topic_count[k] -= 1
-                topic2term_count[k, t] -= 1
-                topic2term_count_sum[k] -= 1
-
-                numerator_theta_vector = doc_topic_count + doc_m_alpha_vector
-                # denominator_theta = sum_doc_topic_count - 1 + sum_doc_m_alpha_vector
-
-                numerator_beta_vector = topic2term_count[:, t] + self.eta_vector[t]
-                # denominator_beta = self.Topic2TermCount.sum(axis=1) + sum(self.eta_vector)
-                denominator_beta = topic2term_count_sum + self.eta_vector_sum
-
-                beta_vector = 1.0 * numerator_beta_vector / denominator_beta
-                # theta_vector = 1.0 numerator_theta_vector / denominator_theta
-                # denominator_theta is independent with t and k, so denominator could be any value except 0
-                # will set denominator_theta as 1.0
-                theta_vector = numerator_theta_vector
-
-                p_vector = beta_vector * theta_vector
-                # print p_vector
-                p_vector = 1.0 * p_vector / sum(p_vector)
-                # print p_vector
-                sample_z = LldaModel._multinomial_sample(p_vector, random_state)
-                z_vector[n] = sample_z
-
-                k = sample_z
-                doc_topic_count[k] += 1
-                topic2term_count[k, t] += 1
-                topic2term_count_sum[k] += 1
-        # reset self.Topic2TermCount
-        # for n, t in enumerate(term_vector):
-        #     k = z_vector[n]
-        #     self.Topic2TermCount[k, t] -= 1
-        #     self.Topic2TermCountSum[k] -= 1
-
-        numerator_theta_vector = doc_topic_count + doc_m_alpha_vector
-        # denominator_theta = sum(doc_topic_count) + sum(doc_m_alpha_vector)
-        denominator_theta = sum(numerator_theta_vector)
-        theta_new = 1.0 * numerator_theta_vector / denominator_theta
-        return theta_new
+    # def _gibbs_sample_inference_multi_processors(self, term_vector, iteration=30):
+    #     """
+    #     inference with gibbs sampling
+    #     :param term_vector: the term vector of document
+    #     :param iteration: the times of iteration
+    #     :return: theta_new, a vector, theta_new[k] is the probability of doc(term_vector) to be generated from topic k
+    #              theta_new, a theta_vector, the doc-topic distribution
+    #     """
+    #     # print("gibbs sample inference iteration: %s" % iteration)
+    #     # TODO: complete multi-processors code here
+    #     # we copy all the shared variables may be modified on runtime
+    #     random_state = np.random.RandomState()
+    #     topic2term_count = self.Topic2TermCount.copy()
+    #     topic2term_count_sum = self.Topic2TermCountSum.copy()
+    #
+    #     doc_topic_count = np.zeros(self.K, dtype=int)
+    #     p_vector = np.ones(self.K, dtype=int)
+    #     p_vector = p_vector * 1.0 / sum(p_vector)
+    #     z_vector = [LldaModel._multinomial_sample(p_vector, random_state=random_state) for _ in term_vector]
+    #     for n, t in enumerate(term_vector):
+    #         k = z_vector[n]
+    #         doc_topic_count[k] += 1
+    #         topic2term_count[k, t] += 1
+    #         topic2term_count_sum[k] += 1
+    #
+    #     # sum_doc_topic_count = sum(doc_topic_count)
+    #     doc_m_alpha_vector = self.alpha_vector
+    #     # sum_doc_m_alpha_vector = sum(doc_m_alpha_vector)
+    #     for i in range(iteration):
+    #         for n, t in enumerate(term_vector):
+    #             k = z_vector[n]
+    #             doc_topic_count[k] -= 1
+    #             topic2term_count[k, t] -= 1
+    #             topic2term_count_sum[k] -= 1
+    #
+    #             numerator_theta_vector = doc_topic_count + doc_m_alpha_vector
+    #             # denominator_theta = sum_doc_topic_count - 1 + sum_doc_m_alpha_vector
+    #
+    #             numerator_beta_vector = topic2term_count[:, t] + self.eta_vector[t]
+    #             # denominator_beta = self.Topic2TermCount.sum(axis=1) + sum(self.eta_vector)
+    #             denominator_beta = topic2term_count_sum + self.eta_vector_sum
+    #
+    #             beta_vector = 1.0 * numerator_beta_vector / denominator_beta
+    #             # theta_vector = 1.0 numerator_theta_vector / denominator_theta
+    #             # denominator_theta is independent with t and k, so denominator could be any value except 0
+    #             # will set denominator_theta as 1.0
+    #             theta_vector = numerator_theta_vector
+    #
+    #             p_vector = beta_vector * theta_vector
+    #             # print p_vector
+    #             p_vector = 1.0 * p_vector / sum(p_vector)
+    #             # print p_vector
+    #             sample_z = LldaModel._multinomial_sample(p_vector, random_state)
+    #             z_vector[n] = sample_z
+    #
+    #             k = sample_z
+    #             doc_topic_count[k] += 1
+    #             topic2term_count[k, t] += 1
+    #             topic2term_count_sum[k] += 1
+    #     # reset self.Topic2TermCount
+    #     # for n, t in enumerate(term_vector):
+    #     #     k = z_vector[n]
+    #     #     self.Topic2TermCount[k, t] -= 1
+    #     #     self.Topic2TermCountSum[k] -= 1
+    #
+    #     numerator_theta_vector = doc_topic_count + doc_m_alpha_vector
+    #     # denominator_theta = sum(doc_topic_count) + sum(doc_m_alpha_vector)
+    #     denominator_theta = sum(numerator_theta_vector)
+    #     theta_new = 1.0 * numerator_theta_vector / denominator_theta
+    #     return theta_new
 
     def training(self, iteration=10, log=False):
         """
@@ -423,7 +434,7 @@ class LldaModel:
         """
         for i in range(iteration):
             if log:
-                print "after iteration: %s, perplexity: %s" % (self.iteration, self.perplexity)
+                print "after iteration: %s, perplexity: %s" % (self.iteration, self.perplexity())
             self._gibbs_sample_training()
         pass
 
@@ -431,22 +442,21 @@ class LldaModel:
         # TODO: inference of a document
         """
         inference for one document
-        :param times: the times of gibbs sampling, the result is the average value of all times(gibbs sampling)
-        :param iteration: the times of iteration
         :param document: some sentence like "this is a method for inference"
+        :param times: the number of samples of the target distribution
+                (one whole iteration(sample for all words) generates a sample, the )
+                #times = #samples,
+                after Markov chain converges, the next #times samples as the samples of the target distribution,
+                we drop the samples before the Markov chain converges,
+                the result is the average value of #times samples
+        :param iteration: the times of iteration until Markov chain converges
         :return: theta_new, a vector, theta_new[k] is the probability of doc(term_vector) to be generated from topic k
                  theta_new, a theta_vector, the doc-topic distribution
         """
-
-        words = document.split()
-        term_vector = [self.vocabulary[word] for word in words if word in self.vocabulary]
-        theta_new_accumulation = np.zeros(self.K, float)
-        for time in range(times):
-            theta_new = self._gibbs_sample_inference(term_vector, iteration=iteration)
-            # print theta_new
-            theta_new_accumulation += theta_new
-        theta_new = 1.0 * theta_new_accumulation / times
-        # print "avg: \n", theta_new
+        document = LldaModel._document_preprocess(document)
+        doc_words = document.split()
+        term_vector = [self.vocabulary[word] for word in doc_words if word in self.vocabulary]
+        theta_new = self._gibbs_sample_inference(term_vector, iteration=iteration, times=times)
         doc_topic_new = [(self.topics[k], probability) for k, probability in enumerate(theta_new)]
         sorted_doc_topic_new = sorted(doc_topic_new,
                                       key=lambda topic_probability: topic_probability[1],
@@ -454,44 +464,44 @@ class LldaModel:
         return sorted_doc_topic_new
         pass
 
-    def inference_multi_processors(self, document, iteration=30, times=8, max_workers=8):
-        # TODO: inference of a document with multi processors
-        """
-        inference for one document
-        :param times: the times of gibbs sampling, the result is the average value of all times(gibbs sampling)
-        :param iteration: the times of iteration
-        :param document: some sentence like "this is a method for inference"
-        :param max_workers: the max number of processors(workers)
-        :return: theta_new, a vector, theta_new[k] is the probability of doc(term_vector) to be generated from topic k
-                 theta_new, a theta_vector, the doc-topic distribution
-        """
-
-        def _pickle_method(m):
-            if m.im_self is None:
-                return getattr, (m.im_class, m.im_func.func_name)
-            else:
-                return getattr, (m.im_self, m.im_func.func_name)
-        copy_reg.pickle(types.MethodType, _pickle_method)
-
-        words = document.split()
-        term_vector = [self.vocabulary[word] for word in words if word in self.vocabulary]
-        term_vectors = [term_vector for _ in range(times)]
-        iterations = [iteration for _ in range(times)]
-
-        with futures.ProcessPoolExecutor(max_workers) as executor:
-            # print "executor.map"
-            res = executor.map(self._gibbs_sample_inference_multi_processors, term_vectors, iterations)
-        theta_new_accumulation = np.zeros(self.K, float)
-        for theta_new in res:
-            theta_new_accumulation += theta_new
-        theta_new = 1.0 * theta_new_accumulation / times
-        # print "avg: \n", theta_new
-        doc_topic_new = [(self.topics[k], probability) for k, probability in enumerate(theta_new)]
-        sorted_doc_topic_new = sorted(doc_topic_new,
-                                      key=lambda topic_probability: topic_probability[1],
-                                      reverse=True)
-        return sorted_doc_topic_new
-        pass
+    # def inference_multi_processors(self, document, iteration=30, times=8, max_workers=8):
+    #     # TODO: inference of a document with multi processors
+    #     """
+    #     inference for one document
+    #     :param times: the times of gibbs sampling, the result is the average value of all times(gibbs sampling)
+    #     :param iteration: the times of iteration
+    #     :param document: some sentence like "this is a method for inference"
+    #     :param max_workers: the max number of processors(workers)
+    #     :return: theta_new, a vector, theta_new[k] is the probability of doc(term_vector) to be generated from topic k
+    #              theta_new, a theta_vector, the doc-topic distribution
+    #     """
+    #
+    #     def _pickle_method(m):
+    #         if m.im_self is None:
+    #             return getattr, (m.im_class, m.im_func.func_name)
+    #         else:
+    #             return getattr, (m.im_self, m.im_func.func_name)
+    #     copy_reg.pickle(types.MethodType, _pickle_method)
+    #
+    #     words = document.split()
+    #     term_vector = [self.vocabulary[word] for word in words if word in self.vocabulary]
+    #     term_vectors = [term_vector for _ in range(times)]
+    #     iterations = [iteration for _ in range(times)]
+    #
+    #     with futures.ProcessPoolExecutor(max_workers) as executor:
+    #         # print "executor.map"
+    #         res = executor.map(self._gibbs_sample_inference_multi_processors, term_vectors, iterations)
+    #     theta_new_accumulation = np.zeros(self.K, float)
+    #     for theta_new in res:
+    #         theta_new_accumulation += theta_new
+    #     theta_new = 1.0 * theta_new_accumulation / times
+    #     # print "avg: \n", theta_new
+    #     doc_topic_new = [(self.topics[k], probability) for k, probability in enumerate(theta_new)]
+    #     sorted_doc_topic_new = sorted(doc_topic_new,
+    #                                   key=lambda topic_probability: topic_probability[1],
+    #                                   reverse=True)
+    #     return sorted_doc_topic_new
+    #     pass
 
     def beta_k(self, k):
         """
@@ -545,34 +555,50 @@ class LldaModel:
         return 1.0 * numerator_matrix / denominator_vector
         pass
 
-    @property
-    def log_perplexity(self):
+    def log_perplexity(self, documents=None, iteration=30, times=10):
         """
-        log perplexity of LDA topic model
+        log perplexity of LDA topic model, use the training data if documents is None
         Reference:  Parameter estimation for text analysis, Gregor Heinrich.
+        :param: documents: test set
         :return: a float value
         """
-        beta = self.beta
-        # theta = self.theta
-        log_likelihood = 0
-        # word_count = 0
-        for m, theta_m in enumerate(self.theta):
-            for t in self.W[m]:
-                likelihood_t = np.inner(beta[:, t], theta_m)
-                # print likelihood_t
-                log_likelihood += -np.log(likelihood_t)
-                # word_count += 1
-        # assert word_count == self.WN, "word_count: %s\tself.WN: %s" % (word_count, self.WN)
-        return 1.0 * log_likelihood / self.WN
+        beta, theta, W, WN, log_likelihood = self.beta, None, None, None, 0
+        # theta is the doc-topic distribution matrix
+        # W is the list of term_vector, each term_vector represents a document
+        # WN is the number of all word in W
+        # difference test set means difference theta, W, WN
 
-    @property
-    def perplexity(self):
+        if not documents:
+            theta = self.theta
+            W = self.W
+            WN = self.WN
+        else:
+            # generate the term_vector of document
+            documents = [LldaModel._document_preprocess(document) for document in documents]
+            test_corpus = [document.split() for document in documents]
+            W = [[self.vocabulary[term] for term in doc_words if term in self.vocabulary] for doc_words in test_corpus]
+            WN = sum([len(term_vector) for term_vector in W])
+            theta = []
+            for term_vector in W:
+                # sample on term_vector until Markov chain converges
+                theta_new = self._gibbs_sample_inference(term_vector, iteration=iteration, times=times)
+                theta.append(theta_new)
+
+        # caculate the log_perplexity of current documents
+        for m, theta_m in enumerate(theta):
+            for t in W[m]:
+                likelihood_t = np.inner(beta[:, t], theta_m)
+                log_likelihood += -np.log(likelihood_t)
+        return 1.0 * log_likelihood / WN
+
+    def perplexity(self, documents=None, iteration=30, times=10):
         """
-        perplexity of LDA topic model
+        perplexity of LDA topic model, we use the training data if documents is None
         Reference:  Parameter estimation for text analysis, Gregor Heinrich.
+        :param: documents: test set
         :return: a float value, perplexity = exp{log_perplexity}
         """
-        return np.exp(self.log_perplexity)
+        return np.exp(self.log_perplexity(documents=documents, iteration=iteration, times=times))
 
     def __repr__(self):
         return "\nLabeled-LDA Model:\n" \
@@ -584,7 +610,8 @@ class LldaModel:
                "\talpha = %s\n" \
                "\teta = %s\n" \
                "\tperplexity = %s\n" \
-               "\t" % (self.K, self.M, self.T, self.WN, self.LN, self.alpha_vector[0], self.eta_vector[0], self.perplexity)
+               "\t" % (self.K, self.M, self.T, self.WN, self.LN, self.alpha_vector[0], self.eta_vector[0],
+                       self.perplexity())
         pass
 
     class SaveModel:
@@ -613,6 +640,16 @@ class LldaModel:
             if save_model_dict is not None:
                 self.__dict__ = save_model_dict
         pass
+
+    @staticmethod
+    def _document_preprocess(document):
+        """
+        process document before inputting it into the model(both training, update and inference)
+        :param document: the target document
+        :return: the word we change
+        """
+        document = document.lower()
+        return document
 
     @staticmethod
     def _read_object_from_file(file_name):
@@ -762,6 +799,7 @@ class LldaModel:
         new_doc_corpus = []
         new_labels_corpus = []
         for document, labels in labeled_documents:
+            document = LldaModel._document_preprocess(document)
             doc_words = document.split()
             new_doc_corpus.append(doc_words)
             if labels is None:
@@ -858,18 +896,37 @@ class LldaModel:
         return new_matrix
         pass
 
-    @property
-    def is_convergent(self):
+    def is_convergent(self, method="PPL", delta=0.001):
         """
         is this model convergent?
+        use the perplexities to determine whether the Markov chain converges
+        :param method: the method of determining whether the Markov chain converges
+                "PPL": use the perplexities of training data
+                "beta": use the parameter 'beta'
+        :param delta: if the changes are less than or equal to `delta`, means that the Markov chain converges
         :return: True if model is convergent
         """
-        if len(self.all_perplexities) < 10:
+        if method == "PPL":
+            if len(self.all_perplexities) < 10:
+                return False
+            perplexities = self.all_perplexities[-10:]
+            if max(perplexities) - min(perplexities) <= delta:
+                return True
             return False
-        perplexities = self.all_perplexities[-10:]
-        if max(perplexities) - min(perplexities) > 0.5:
+        elif method == "beta":
+            if self.delta_beta <= delta:
+                return True
             return False
-        return True
+        else:
+            raise Exception("parameter 'method=\"%s\"' is illegal" % method)
+
+    @property
+    def delta_beta(self):
+        """
+        calculate the changes of the parameter `beta`
+        :return: the sum of changes of the parameter `beta`
+        """
+        return np.sum(np.abs(self.beta - self.last_beta))
 
 
 if __name__ == "__main__":
