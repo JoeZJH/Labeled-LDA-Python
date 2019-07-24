@@ -36,8 +36,6 @@ class LldaModel:
     @field topic_vocabulary: a dict of <topic, topic_id>, topic_vocabulary[topics[id]] == id
     @field W: the corpus, a list of terms list,
               W[m] is the document vector, W[m][n] is the id of the term
-    @field Lambda: a matrix, shape is M * K,
-                   Lambda[m][k] is 1 means topic k is a label of document m
     @field Z: the topic corpus, just same as W,
               except Z[m][n] is the id of the topic of the term
     @field M: the number of documents
@@ -45,6 +43,10 @@ class LldaModel:
     @field WN: the number of all words in W
     @field LN: the number of all original labels
     @field iteration: the times of iteration
+    @field all_perplexities: a list of all perplexities (one training iteration one perplexity)
+    @field last_beta: the parameter `beta` of last training iteration
+    @field Lambda: a matrix, shape is M * K,
+                   Lambda[m][k] is 1 means topic k is a label of document m
 
     # derivative fields
     @field Doc2TopicCount: a matrix, shape is M * K,
@@ -55,9 +57,9 @@ class LldaModel:
                               Doc2TopicCountSum[m] is the count of all topic,
                               i.e., Doc2TopicCountSum[m] is the number of words in document m
     @field alpha_vector_Lambda: a matrix, self.alpha_vector * self.Lambda
-    @alpha_vector_Lambda_sum: a vector, self.alpha_vector_Lambda.sum(axis=1)
-    @eta_vector_sum: float value, sum(self.eta_vector)
-    @Topic2TermCountSum: a vector, self.Topic2TermCount.sum(axis=1)
+    @field alpha_vector_Lambda_sum: a vector, self.alpha_vector_Lambda.sum(axis=1)
+    @field eta_vector_sum: float value, sum(self.eta_vector)
+    @field Topic2TermCountSum: a vector, self.Topic2TermCount.sum(axis=1)
 
     """
     def __init__(self, alpha_vector="50_div_K", eta_vector=None, labeled_documents=None):
@@ -83,7 +85,6 @@ class LldaModel:
         self.iteration = 0
         self.all_perplexities = []
         self.last_beta = None
-
         self.Lambda = None
 
         # derivative fields:
@@ -587,7 +588,7 @@ class LldaModel:
         # caculate the log_perplexity of current documents
         for m, theta_m in enumerate(theta):
             for t in W[m]:
-                likelihood_t = np.inner(beta[:, t], theta_m)
+                likelihood_t = np.inner(theta_m, beta[:, t])
                 log_likelihood += -np.log(likelihood_t)
         return 1.0 * log_likelihood / WN
 
