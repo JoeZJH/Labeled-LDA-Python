@@ -938,6 +938,8 @@ class LldaModel:
         :param k: int, the number of terms
         :return: the top-k terms of topic
         """
+        if topic not in self.topic_vocabulary:
+            raise Exception("Cannot find topic \"%s\"" % topic)
         beta = self.beta_k(self.topic_vocabulary[topic])
         terms = sorted(list(zip(self.terms, beta)), key=lambda x: x[1], reverse=True)
         if with_probabilities:

@@ -72,3 +72,5 @@ llda_model_new.load_model_from_dir(save_model_dir, load_derivative_properties=Fa
 print "llda_model_new", llda_model_new
 print "llda_model", llda_model
 print "Top-5 terms of topic 'negative': ", llda_model.top_terms_of_topic("negative", 5, False)
+print "Doc-Topic Matrix: \n", llda_model.theta
+print "Topic-Term Matrix: \n", llda_model.beta
