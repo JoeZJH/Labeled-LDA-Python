@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../')
 import model.labeled_lda as llda
 
 # initialize data
@@ -69,4 +71,4 @@ llda_model_new = llda.LldaModel()
 llda_model_new.load_model_from_dir(save_model_dir, load_derivative_properties=False)
 print "llda_model_new", llda_model_new
 print "llda_model", llda_model
-print llda_model.top_terms_of_topic("negative", 5, False)
+print "Top-5 terms of topic 'negative': ", llda_model.top_terms_of_topic("negative", 5, False)

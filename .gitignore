@@ -2,4 +2,5 @@
 *.pyc
 .idea/
 data/
+example/test.py
 
