@@ -41,6 +41,7 @@ Labeled LDA can directly learn topics(tags) correspondences.
 
 ### Example 
 ```
+# Python 2.7
 # @source code: example/exapmle.py
 
 import model.labeled_lda as llda
