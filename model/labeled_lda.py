@@ -8,13 +8,29 @@
 #   i.      Labeled LDA: A supervised topic model for credit attribution in multi-labeled corpora, Daniel Ramage...
 #   ii.     Parameter estimation for text analysis, Gregor Heinrich.
 #   iii.    Latent Dirichlet Allocation, David M. Blei, Andrew Y. Ng...
-
+import numpy
 import numpy as np
 import os
 import json
 from concurrent import futures
-import copy_reg
+try:
+    import copy_reg
+except Exception:
+    import copyreg as copy_reg
+
 import types
+
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(NpEncoder, self).default(obj)
 
 
 class LldaModel:
@@ -277,7 +293,7 @@ class LldaModel:
                 self.Topic2TermCountSum[k] += 1
                 count += 1
         assert count == self.WN
-        print "gibbs sample count: ", self.WN
+        print("gibbs sample count: ", self.WN)
         self.iteration += 1
         self.all_perplexities.append(self.perplexity())
         pass
@@ -435,7 +451,7 @@ class LldaModel:
         """
         for i in range(iteration):
             if log:
-                print "after iteration: %s, perplexity: %s" % (self.iteration, self.perplexity())
+                print("after iteration: %s, perplexity: %s" % (self.iteration, self.perplexity()))
             self._gibbs_sample_training()
         pass
 
@@ -682,11 +698,11 @@ class LldaModel:
         LldaModel._find_and_create_dirs(dirname)
         try:
             with open(file_name, "w") as f:
-                json.dump(target_object, f, skipkeys=False, ensure_ascii=False, check_circular=True, allow_nan=True, cls=None, indent=True, separators=None, encoding="utf-8", default=None, sort_keys=False)
-        except Exception, e:
+                json.dump(target_object, f, skipkeys=False, ensure_ascii=False, check_circular=True, allow_nan=True,
+                          cls=NpEncoder, indent=True, separators=None, default=None, sort_keys=False)
+        except Exception as e:
             message = "Write [%s...] to file [%s] error: json.dump error" % (str(target_object)[0:10], file_name)
-            print ("%s\n\t%s" % (message, e.message))
-            print "e.message: ", e.message
+            print (e)
             return False
         else:
             # print ("Write %s" % file_name)
@@ -779,7 +795,7 @@ class LldaModel:
                 self.alpha_vector_Lambda = np.load(os.path.join(dir_name, "alpha_vector_Lambda.npy"))
                 self.eta_vector_sum = np.load(os.path.join(dir_name, "eta_vector_sum.npy"))
                 self.Topic2TermCountSum = np.load(os.path.join(dir_name, "Topic2TermCountSum.npy"))
-            except IOError or ValueError, e:
+            except IOError or ValueError as e:
                 print("%s: load derivative properties fail, initialize them with basic properties" % e)
                 self._initialize_derivative_fields()
         else:
