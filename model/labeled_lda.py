@@ -702,7 +702,7 @@ class LldaModel:
                           cls=NpEncoder, indent=True, separators=None, default=None, sort_keys=False)
         except Exception as e:
             message = "Write [%s...] to file [%s] error: json.dump error" % (str(target_object)[0:10], file_name)
-            print (e)
+            print ("%s: %s" % (e, message))
             return False
         else:
             # print ("Write %s" % file_name)
@@ -961,6 +961,7 @@ class LldaModel:
         if with_probabilities:
             return terms[:k]
         return [term for term, p in terms[:k]]
+
 
 if __name__ == "__main__":
     pass
